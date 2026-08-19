@@ -1,0 +1,25 @@
+# Node and build artifacts
+node_modules/
+dist/
+vendor/
+
+# OS files
+.DS_Store
+
+# Editor directories
+.vscode/
+.idea/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local env
+.env
+
+# Pack files
+*.tgz
+
+# Ignore IDE session files
+*.code-workspace

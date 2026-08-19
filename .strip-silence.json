@@ -1,0 +1,8 @@
+{
+  "windowSize": 512,
+  "rmsThreshold": 0.001,
+  "minSilenceDuration": 0.02,
+  "sampleThreshold": 0.0001,
+  "edgeToleranceSeconds": 0.02,
+  "safetyMilliseconds": 23
+}
