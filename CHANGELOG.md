@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.0.3-beta] - 2026-08-22
+### Added
+- Second right-click command, **Strip Silence Edit**, which opens a small settings dialog before running. Three fields: Threshold (dB), Head pad (ms), Tail pad (ms). Enter or the Strip button runs; Esc or Cancel closes without rendering or clearing anything.
+- Dialog values prefill from `.strip-silence.json` when present, otherwise from built-in defaults. Dialog entries apply to that run only and never write back to the file.
+- Threshold is typed in dB and converted to linear amplitude once where the dialog result arrives. Empty padding fields fall back to `safetyMilliseconds`, same rule as the config file.
+
+### Changed
+- The strip pipeline (render, detect, clear) moved into one shared function. Both commands run identical code; **Strip Silence** remains fully headless and reads only the config file, exactly as before.
+
+### Unchanged
+- Detection algorithm, beat mapping, single transaction with descending clears, strict clamping to the time selection, and all other `.strip-silence.json` keys.
+
+### Known issues
+- When the time selection starts flush with the first clip's start (no lead-in selected before it), a few milliseconds of silence can remain at the very beginning of the selection after stripping. Host beat↔time rounding at the selection edge is the cause; the selection end has an extra defensive clear but the selection start does not yet. Workaround: extend the selection slightly before the first clip.
+
 ## [0.0.2-beta] - 2026-08-21
 ### Added
 - Separate padding controls in `.strip-silence.json`: `headPaddingMs` (quiet lead-in kept before each remaining clip's start) and `tailPaddingMs` (quiet decay kept after each remaining clip's end). Each falls back to `safetyMilliseconds` when omitted, preserving existing config behavior.
