@@ -23,7 +23,7 @@ This Extension currently requires:
 
 - **Ableton Live 12 Suite Beta (minimum version TBD) or later**
 - macOS tested (Tyler's M-series MacBook Pro); Windows not yet tested
-- The packaged extension file: `Strip-Silence-0.0.3.ablx`
+- The packaged extension file: `Strip-Silence-0.0.4.ablx`
 
 > [!IMPORTANT]
 > Ableton Extensions are currently part of Ableton Live's public beta workflow. They do not work in Live Standard, Intro, Lite, or earlier Live versions. You do **not** need the Ableton Extensions SDK or Node.js just to install and use the `.ablx` file. [Ableton Extensions FAQ](https://help.ableton.com/hc/en-us/articles/27303428331420-Ableton-Extensions-FAQ)
@@ -44,13 +44,13 @@ If AI-assisted development isn't your thing, no hard feelings at all. Thanks for
 
 ## Installation
 
-1. Download `Strip-Silence-0.0.3.ablx` from this repository's [Releases](../../releases) page.
+1. Download `Strip-Silence-0.0.4.ablx` from this repository's [Releases](../../releases) page.
 2. Open **Ableton Live 12 Suite Beta**.
 3. Open **Settings/Preferences**:
    - macOS: press `Cmd + ,`
    - Windows: open **Options → Preferences**
 4. Select **Extensions**.
-5. Drag `Strip-Silence-0.0.3.ablx` into the Extensions settings page.
+5. Drag `Strip-Silence-0.0.4.ablx` into the Extensions settings page.
 6. Restart Live when prompted.
 
 For normal use of the installed `.ablx`, make sure **Developer Mode is turned off**.
@@ -72,18 +72,20 @@ The `.strip-silence.json` file in your project folder sets defaults for every ru
 
 ```json
 {
-  "sampleThreshold": 0.0001,
+  "sampleThreshold": 0.001,
   "minSilenceDuration": 0.02,
   "safetyMilliseconds": 25,
-  "headPaddingMs": 8,
+  "headPaddingMs": 0,
   "tailPaddingMs": 25
 }
 ```
 
+These are the field-tested starting values the extension also falls back to when no config file exists.
+
 - `sampleThreshold` — linear amplitude threshold; anything above this counts as audio. To convert from dB: amplitude = 10^(dB/20) (e.g. -60 dB ≈ 0.001). The Edit dialog takes dB directly and does this conversion for you.
 - `minSilenceDuration` — minimum length (in seconds) a quiet stretch must be to count as silence.
 - `safetyMilliseconds` — default padding preserved on **both** sides of every detected silent gap (default 25). Fully respected by the detector as of v0.0.2.
-- `headPaddingMs` — quiet lead-in kept **before** each remaining clip's first sound (tighter values like 5–10 ms suit percussive material). Overrides `safetyMilliseconds` for that side when set.
+- `headPaddingMs` — quiet lead-in kept **before** each remaining clip's first sound. Overrides `safetyMilliseconds` for that side when set. At the -60 dB default threshold none is needed (testing found even half a sample of padding made no difference); looser thresholds usually want a bit more.
 - `tailPaddingMs` — quiet decay kept **after** each remaining clip's last sound. Overrides `safetyMilliseconds` for that side when set.
 - Advanced (optional): `edgeToleranceSeconds`, `tailEpsilonMs`, `snapThresholdBeats`, `startSnapMillis` — fine-tune how detected silences near the edges of your selection snap flush to the selection bounds.
 
@@ -151,7 +153,7 @@ Extensions are context-sensitive: Live only shows them when the selected item ma
 
 ### I installed it but an older version appears to run
 
-Remove the old version from **Settings/Preferences → Extensions**, install `Strip-Silence-0.0.3.ablx`, then restart Live.
+Remove the old version from **Settings/Preferences → Extensions**, install `Strip-Silence-0.0.4.ablx`, then restart Live.
 
 ### I still see a tiny sliver of audio/silence at the start or end of a clip
 

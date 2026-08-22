@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.0.4-beta] - 2026-08-22
+### Changed
+- New field-tested base defaults: threshold stays at -60 dB, tail padding keeps falling back to the 25 ms safety padding, and the built-in head pad drops to 0 instead of "use the safety padding". At -60 dB the cut already lands at the start of each sound; repeated testing showed even half a sample (0.01228 ms) of extra lead-in made no difference. The README example config shows these values as the recommended starting point, and the project's `.strip-silence.json` matches them.
+
 ## [0.0.3-beta] - 2026-08-22
 ### Added
 - Second right-click command, **Strip Silence Edit**, which opens a small settings dialog before running. Three fields: Threshold (dB), Head pad (ms), Tail pad (ms). Enter or the Strip button runs; Esc or Cancel closes without rendering or clearing anything.

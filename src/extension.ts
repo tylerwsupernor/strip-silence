@@ -136,7 +136,11 @@ function defaultSettings(): StripSettings {
     minSilenceDuration: 0.25,
     sampleThreshold: 0.001, // ~ -60 dB
     safetyMilliseconds: 25,
-    headPaddingMs: undefined,
+    // Field-tested base values (2026-08-22): at -60 dB the cut lands right at
+    // the start of each sound, so no head lead-in is needed. Tested value was
+    // 0.01228 ms (~half a sample); behaves identically to 0. Tail intentionally
+    // unset so it follows safetyMilliseconds (25).
+    headPaddingMs: 0,
     tailPaddingMs: undefined,
     edgeToleranceSeconds: 0.05,
     tailEpsilonSeconds: 0.05,

@@ -1,7 +1,8 @@
 {
   "minSilenceDuration": 0.02,
-  "sampleThreshold": 0.00005,
+  "sampleThreshold": 0.001,
   "edgeToleranceSeconds": 0.02,
-  "safetyMilliseconds": 23,
-  "headPaddingMs": 0.5
+  "safetyMilliseconds": 25,
+  "headPaddingMs": 0,
+  "tailPaddingMs": 25
 }
