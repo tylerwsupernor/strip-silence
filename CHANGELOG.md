@@ -13,9 +13,6 @@ All notable changes to this project are documented in this file.
 - Removed an unconditional epsilon expansion of clear-range ends that could eat into audio following a silent gap.
 - Tail-clear workaround now issues a single defensive clear pinned to the selection end instead of two overlapping clears, one of which overshot past the user's selection; all clears are strictly clamped to `[time_selection_start, time_selection_end]`.
 
-### Changed
-- Version bumped across `package.json`, `manifest.json`, and packaged filename references (`Strip-Silence-0.0.2.ablx`).
-
 ### Unchanged
 - Silence detection remains per-sample noise-gate based (`computeSilenceRanges`); only boundary bookkeeping changed.
 - Tempo mapping is still linear over the rendered selection.
