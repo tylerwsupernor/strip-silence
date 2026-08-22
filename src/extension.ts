@@ -25,6 +25,9 @@ interface SilenceOptions {
   rmsThreshold: number; // below this = silence
   minSilenceDuration: number; // in seconds
   sampleThreshold?: number; // optional per-sample amplitude threshold for boundary refinement
+  safetyMilliseconds?: number; // default padding preserved on both sides of each silent gap
+  headPaddingMs?: number | undefined; // quiet lead-in kept before each remaining clip's start (overrides safetyMilliseconds)
+  tailPaddingMs?: number | undefined; // quiet decay kept after each remaining clip's end (overrides safetyMilliseconds)
 }
 
 interface SilenceRange {
@@ -92,14 +95,19 @@ export function computeSilenceRanges(
     }
   }
 
-  // Apply a small safety padding to avoid accidentally cutting very early transients.
-  // safetyMilliseconds (in opts) can be used to configure. Default: 25ms.
-  const safetyMilliseconds = (opts as any).safetyMilliseconds ?? (opts as any).safetyMs ?? 25;
-  const safetySeconds = Math.max(0, Number(safetyMilliseconds) / 1000);
+  // Apply a small safety padding around every silent range so audio on both sides
+  // of each gap is preserved (avoids clipping transients at range edges).
+  // headPaddingMs = quiet lead-in kept before each remaining clip's start.
+  // tailPaddingMs = quiet decay kept after each remaining clip's end.
+  // Each falls back to safetyMilliseconds (default 25ms) when not configured.
+  const fallbackMs = Math.max(0, opts.safetyMilliseconds ?? 25);
+  const headSeconds = Math.max(0, (opts.headPaddingMs ?? fallbackMs) / 1000);
+  const tailSeconds = Math.max(0, (opts.tailPaddingMs ?? fallbackMs) / 1000);
 
   for (const r of merged) {
-    // Shrink the end of the silent range by safetySeconds (i.e., remove slightly less silence)
-    r.end = Math.max(r.start, r.end - safetySeconds);
+    // Shrink each silent range inward: tail pad on the start side, head pad on the end side.
+    r.start = Math.min(r.end, r.start + tailSeconds);
+    r.end = Math.max(r.start, r.end - headSeconds);
   }
 
   return merged.filter((r) => r.end - r.start > 1e-6);
@@ -134,8 +142,10 @@ export function activate(activation: ActivationContext) {
           return Number.isFinite(n) ? n : fallback;
         };
 
-        // Defaults for additional, configurable safety thresholds (milliseconds -> seconds)
-        let cfgSafetySeconds = 0.025;
+        // Defaults for additional, configurable safety thresholds
+        let cfgSafetyMs = 25;
+        let cfgHeadPaddingMs = Number.NaN; // NaN = not set -> falls back to cfgSafetyMs
+        let cfgTailPaddingMs = Number.NaN; // NaN = not set -> falls back to cfgSafetyMs
         let cfgTailEpsilonSeconds = 0.05;
         let cfgSnapThresholdBeats = 0.002;
         let cfgStartSnapSeconds = 0.01;
@@ -148,13 +158,16 @@ export function activate(activation: ActivationContext) {
         minSilenceDuration = parseNum(cfg.minSilenceDuration, minSilenceDuration);
         sampleThreshold = parseNum(cfg.sampleThreshold, sampleThreshold);
         edgeToleranceSeconds = parseNum(cfg.edgeToleranceSeconds, edgeToleranceSeconds);
-        // additional, configurable safety thresholds (milliseconds)
-        const safetyMs = parseNum((cfg as any).safetyMilliseconds, 25);
-        const tailEpsilonMs = parseNum((cfg as any).tailEpsilonMs, 50);
-        const snapThresholdBeatsCfg = parseNum((cfg as any).snapThresholdBeats, 0.002);
-        const startSnapMs = parseNum((cfg as any).startSnapMillis, 10);
-        // normalize to seconds and assign
-        cfgSafetySeconds = safetyMs / 1000;
+        // additional, configurable safety thresholds
+        cfgSafetyMs = parseNum(cfg.safetyMilliseconds, 25);
+        // parseNum returns the fallback (NaN here) when a key is missing/invalid,
+        // which we treat as "not set" so the detector falls back to safetyMilliseconds.
+        cfgHeadPaddingMs = parseNum(cfg.headPaddingMs, Number.NaN);
+        cfgTailPaddingMs = parseNum(cfg.tailPaddingMs, Number.NaN);
+        const tailEpsilonMs = parseNum(cfg.tailEpsilonMs, 50);
+        const snapThresholdBeatsCfg = parseNum(cfg.snapThresholdBeats, 0.002);
+        const startSnapMs = parseNum(cfg.startSnapMillis, 10);
+        // normalize to seconds where needed and assign
         cfgTailEpsilonSeconds = tailEpsilonMs / 1000;
         cfgSnapThresholdBeats = snapThresholdBeatsCfg;
         cfgStartSnapSeconds = startSnapMs / 1000;
@@ -218,6 +231,9 @@ export function activate(activation: ActivationContext) {
                 rmsThreshold: rmsThreshold,
                 minSilenceDuration: minSilenceDuration,
                 sampleThreshold: sampleThreshold,
+                safetyMilliseconds: cfgSafetyMs,
+                headPaddingMs: Number.isNaN(cfgHeadPaddingMs) ? undefined : cfgHeadPaddingMs,
+                tailPaddingMs: Number.isNaN(cfgTailPaddingMs) ? undefined : cfgTailPaddingMs,
               });
 
               console.log(`[${track.name}] ${decoded.duration.toFixed(3)}s, ${silence.length} silent region(s)`);
@@ -259,17 +275,12 @@ export function activate(activation: ActivationContext) {
                       if (r.start <= startSnapSecondsLocal && mappedStartBeats <= snapThresholdBeatsLocal) {
                         startClamped = selection.time_selection_start;
                       }
-                      // Safety padding: move the start slightly earlier (preserve a few ms of audio)
-                      const safetySecondsLocal = typeof cfgSafetySeconds !== 'undefined' ? cfgSafetySeconds : 0.025;
-                      startClamped = Math.max(selection.time_selection_start, startClamped - safetySecondsLocal);
                       try {
                         // debug log of the mapped and clamped values
                         // (wrapped in try to avoid any issues in production hosts)
                         console.log(`[Strip Silence][${track.name}] r.start=${r.start.toFixed(6)}s mappedStart=${mappedStart.toFixed(6)} beats startClamped=${startClamped.toFixed(6)}s`);
                       } catch {}
                       if (duration - r.end <= epsilonSeconds) endClamped = selection.time_selection_end;
-                      // Expand end by epsilon to avoid tiny round-off gaps that leave a sliver
-                      endClamped = Math.min(selection.time_selection_end, endClamped + epsilonSeconds);
                       return { start: startClamped, end: endClamped };
                     })
                     .filter((p) => p.end - p.start > 1e-6)
@@ -284,26 +295,21 @@ export function activate(activation: ActivationContext) {
 
                   const clears = mapped.map((p) => track.clearClipsInRange(p.start, p.end));
 
-                  // If any mapped range was snapped to the selection end, issue an extra
-                  // clear that spans slightly before the selection end to ensure no tiny
-                  // sliver remains due to host rounding. Convert epsilon (seconds) -> beats.
+                  // If any mapped range was snapped to the selection end, issue ONE extra
+                  // defensive clear pinned exactly to the selection bounds, so it can never
+                  // reach beyond the user's selection.
                   const tailSnapped = mapped.some((p) => Math.abs(p.end - selection.time_selection_end) < 1e-9);
                   if (tailSnapped) {
-                    const tailEpsSec = Math.max(edgeToleranceSeconds, 0.050); // 50ms
+                    const tailEpsSec = Math.max(edgeToleranceSeconds, 0.05); // 50ms
                     const tailEpsBeats = tailEpsSec * beatsPerSecond;
-                    // issue two extra clears: one covering a 100ms window before end (beats),
-                    // and one small overshoot beyond the end to ensure host clears any sliver.
-                    const extraStart = selection.time_selection_end - tailEpsBeats - 0.001;
-                    const extraMidStart = Math.max(selection.time_selection_start, selection.time_selection_end - 2 * tailEpsBeats);
-                    const extraEnd = selection.time_selection_end + tailEpsBeats; // overshoot by tailEps
+                    const extraStart = Math.max(
+                      selection.time_selection_start,
+                      selection.time_selection_end - tailEpsBeats,
+                    );
                     try {
-                      console.log(`[Strip Silence][${track.name}] performing extra tail clears (beats): ${extraMidStart.toFixed(6)}->${selection.time_selection_end.toFixed(6)} and ${extraStart.toFixed(6)}->${extraEnd.toFixed(6)}`);
+                      console.log(`[Strip Silence][${track.name}] performing extra tail clear: ${extraStart.toFixed(6)} -> ${selection.time_selection_end.toFixed(6)} (beats)`);
                     } catch {}
-                    try {
-                      console.log(`[Strip Silence][${track.name}] performing extra tail clear: ${extraStart.toFixed(6)} -> ${extraEnd.toFixed(6)} (beats)`);
-                    } catch {}
-                    clears.push(track.clearClipsInRange(extraMidStart, selection.time_selection_end));
-                    clears.push(track.clearClipsInRange(extraStart, extraEnd));
+                    clears.push(track.clearClipsInRange(extraStart, selection.time_selection_end));
                   }
 
                   return clears;

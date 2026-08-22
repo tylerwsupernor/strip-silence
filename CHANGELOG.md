@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.0.2-beta] - 2026-08-21
+### Added
+- Separate padding controls in `.strip-silence.json`: `headPaddingMs` (quiet lead-in kept before each remaining clip's start) and `tailPaddingMs` (quiet decay kept after each remaining clip's end). Each falls back to `safetyMilliseconds` when omitted, preserving existing config behavior.
+
+### Fixed
+- Safety padding (`safetyMilliseconds`) now shrinks each detected silent range inward on **both** sides, preserving audio at both edges of every gap (previously only the range end was padded).
+- `safetyMilliseconds` from `.strip-silence.json` is now forwarded to `computeSilenceRanges`; previously the config value was parsed but silently ignored (the detector always used its 25 ms default).
+- Removed a second padding pass in the beat-mapping stage that moved clear ranges in the wrong direction (deleting extra audio before gaps) and mixed seconds with beats.
+- Removed an unconditional epsilon expansion of clear-range ends that could eat into audio following a silent gap.
+- Tail-clear workaround now issues a single defensive clear pinned to the selection end instead of two overlapping clears, one of which overshot past the user's selection; all clears are strictly clamped to `[time_selection_start, time_selection_end]`.
+
+### Changed
+- Version bumped across `package.json`, `manifest.json`, and packaged filename references (`Strip-Silence-0.0.2.ablx`).
+
+### Unchanged
+- Silence detection remains per-sample noise-gate based (`computeSilenceRanges`); only boundary bookkeeping changed.
+- Tempo mapping is still linear over the rendered selection.
+- The whole strip operation still runs as one Live transaction (single undo step), with descending-order clearing.
+
 ## [0.0.1-beta] - 2026-08-18
 ### Added
 - Initial beta release published as `0.0.1-beta`.
@@ -37,7 +56,3 @@ All notable changes to this project are documented in this file.
 
 - `sampleThreshold` is a linear amplitude threshold. To use dB values: amplitude = 10^(dB/20) (e.g. -60 dB ≈ 0.001).
 - Run the extension in Ableton as usual; the extension operates headless and uses `.strip-silence.json` for configuration.
-
----
-
-If you want a different changelog style (Keep a Changelog, semantic release, or a shorter release note), tell me and I will update it. If you'd like this added as a release artifact (zip) or committed to a git repository, I can do that next.

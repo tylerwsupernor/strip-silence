@@ -10,9 +10,9 @@ Built to remove the repetitive task of manually zooming in and trimming silence 
 
 - Noise-gate style silence detection: any sample at or above a configurable amplitude threshold counts as "audio," and silent runs longer than a minimum duration get flagged for removal.
 - Works across multiple selected audio tracks in one pass.
-- Headless in this beta — no settings dialog yet; all tuning is done via a project-level `.strip-silence.json` config file.
-- Safety padding around detected silence (default ~23ms) so quiet early transients aren't accidentally clipped.
-- Extra tail-clearing logic to reduce leftover slivers at clip ends caused by host rounding.
+- Safety padding on **both sides** of every detected silent gap (default 25 ms), so quiet early transients and word tails aren't accidentally clipped.
+- All clip-clear operations stay strictly within your time selection — nothing outside the selected range is ever touched.
+- Headless in this beta — no settings dialog yet; all tuning is done via a project-level `.strip-silence.json` config file, including `safetyMilliseconds`.
 - Runs as a single Live transaction, so the whole pass can be undone in one step.
 - Limitation: it does not currently expose an in-app UI for adjusting settings — you must edit the JSON config file directly.
 - Limitation: silence detection is amplitude/noise-gate based only in this beta (no RMS/windowed detection yet, even though those config fields exist).
@@ -23,26 +23,34 @@ This Extension currently requires:
 
 - **Ableton Live 12 Suite Beta (minimum version TBD) or later**
 - macOS tested (Tyler's M-series MacBook Pro); Windows not yet tested
-- The packaged extension file: `Strip-Silence-0.0.1.ablx`
+- The packaged extension file: `Strip-Silence-0.0.2.ablx`
 
 > [!IMPORTANT]
 > Ableton Extensions are currently part of Ableton Live's public beta workflow. They do not work in Live Standard, Intro, Lite, or earlier Live versions. You do **not** need the Ableton Extensions SDK or Node.js just to install and use the `.ablx` file. [Ableton Extensions FAQ](https://help.ableton.com/hc/en-us/articles/27303428331420-Ableton-Extensions-FAQ)
 
+## More on Ableton Extensions
+
+Want to learn more about what Ableton Extensions are or how to build your own?
+
+- [Read about Extensions on Ableton.com](https://www.ableton.com/en/live/extensions)
+- [Explore the Extension SDK](https://ableton.github.io/extensions-sdk)
+- [Join Ableton's Discord](https://discord.gg/ableton) to connect with other users and developers
+
 ## Disclaimer
 
-This project was developed with help from AI tools (including Copilot for parts of the silence-detection logic), which assisted with parts of the code, troubleshooting, and documentation. I remain responsible for the design, testing, and final decisions, but it may not be written in the most elegant way — this is an early beta.
+This project was developed with help from AI tools, which assisted with parts of the code, troubleshooting, and documentation. I remain responsible for the design, testing, and final decisions, but it may not be written in the most elegant way.
 
 If AI-assisted development isn't your thing, no hard feelings at all. Thanks for giving it a look anyway.
 
 ## Installation
 
-1. Download `Strip-Silence-0.0.1.ablx` from this repository's [Releases](../../releases) page.
+1. Download `Strip-Silence-0.0.2.ablx` from this repository's [Releases](../../releases) page.
 2. Open **Ableton Live 12 Suite Beta**.
 3. Open **Settings/Preferences**:
    - macOS: press `Cmd + ,`
    - Windows: open **Options → Preferences**
 4. Select **Extensions**.
-5. Drag `Strip-Silence-0.0.1.ablx` into the Extensions settings page.
+5. Drag `Strip-Silence-0.0.2.ablx` into the Extensions settings page.
 6. Restart Live when prompted.
 
 For normal use of the installed `.ablx`, make sure **Developer Mode is turned off**.
@@ -56,7 +64,33 @@ For normal use of the installed `.ablx`, make sure **Developer Mode is turned of
 5. (Optional, beta only) Edit `.strip-silence.json` in your project folder beforehand to tune thresholds — there is no in-app prompt yet.
 6. The Extension analyzes the selection and clears detected silent regions automatically.
 
-Ableton renders each selected track's pre-FX audio, analyzes it for silence, then clears the silent ranges from the arrangement in one transaction, track by track.
+Ableton renders each selected track's pre-FX audio, analyzes it for silence, then clears the silent ranges from the arrangement in one transaction, track by track. Every cut stays inside your selection, with a small safety pad left around the remaining audio.
+
+## Configuration (beta)
+
+Since this beta has no settings UI, create a `.strip-silence.json` file in your project folder to tune behavior:
+
+```json
+{
+  "sampleThreshold": 0.0001,
+  "minSilenceDuration": 0.02,
+  "safetyMilliseconds": 25,
+  "headPaddingMs": 8,
+  "tailPaddingMs": 25,
+  "windowSize": 512,
+  "rmsThreshold": 0.001
+}
+```
+
+- `sampleThreshold` — linear amplitude threshold; anything above this counts as audio. To convert from dB: amplitude = 10^(dB/20) (e.g. -60 dB ≈ 0.001).
+- `minSilenceDuration` — minimum length (in seconds) a quiet stretch must be to count as silence.
+- `safetyMilliseconds` — default padding preserved on **both** sides of every detected silent gap (default 25). Fully respected by the detector as of v0.0.2.
+- `headPaddingMs` — quiet lead-in kept **before** each remaining clip's first sound (tighter values like 5–10 ms suit percussive material). Overrides `safetyMilliseconds` for that side when set.
+- `tailPaddingMs` — quiet decay kept **after** each remaining clip's last sound. Overrides `safetyMilliseconds` for that side when set.
+- `windowSize`, `rmsThreshold` — reserved for future RMS-based detection; not used by this beta's noise-gate logic yet.
+- Advanced (optional): `edgeToleranceSeconds`, `tailEpsilonMs`, `snapThresholdBeats`, `startSnapMillis` — fine-tune how detected silences near the edges of your selection snap flush to the selection bounds.
+
+If the file is missing or invalid, built-in defaults are used.
 
 ## Example workflow
 
@@ -90,7 +124,7 @@ Press:
 
 ## Safety
 
-Strip Silence changes **only the clips within the tracks and time range you selected when you ran the command**.
+Strip Silence changes **only the clips within the tracks and time range you selected when you ran the command**. As of v0.0.2, every clear operation is strictly clamped to the selection — including cleanup passes near the end of the range.
 
 It does not change:
 
@@ -120,7 +154,7 @@ Extensions are context-sensitive: Live only shows them when the selected item ma
 
 ### I installed it but an older version appears to run
 
-Remove the old version from **Settings/Preferences → Extensions**, install `Strip-Silence-0.0.1.ablx`, then restart Live.
+Remove the old version from **Settings/Preferences → Extensions**, install `Strip-Silence-0.0.2.ablx`, then restart Live.
 
 ### I still see a tiny sliver of audio/silence at the start or end of a clip
 
@@ -149,26 +183,16 @@ This produces an `.ablx` file in the project folder.
 
 Development requires the Ableton Extensions SDK, Node.js, and a compatible Ableton Live 12 Suite Beta installation. See the [official Ableton Extensions SDK documentation](https://ableton.github.io/extensions-sdk/).
 
-## Configuration (beta)
-
-Since this beta has no settings UI, create a `.strip-silence.json` file in your project folder to tune behavior:
-
-```json
-{
-  "sampleThreshold": 0.0001,
-  "minSilenceDuration": 0.02,
-  "safetyMilliseconds": 23,
-  "windowSize": 512,
-  "rmsThreshold": 0.001
-}
-```
-
-- `sampleThreshold` — linear amplitude threshold; anything above this counts as audio. To convert from dB: amplitude = 10^(dB/20) (e.g. -60 dB ≈ 0.001).
-- `minSilenceDuration` — minimum length (in seconds) a quiet stretch must be to count as silence.
-- `safetyMilliseconds` — padding left around detected audio to avoid clipping transients.
-- `windowSize`, `rmsThreshold` — reserved for future RMS-based detection; not fully used by this beta's noise-gate logic yet.
-
 ## Version History
+
+### v0.0.2-beta
+
+- Added: separate padding controls — `headPaddingMs` (lead-in before each kept clip) and `tailPaddingMs` (decay after each kept clip). Both fall back to `safetyMilliseconds`, so existing configs keep working.
+- Fixed: safety padding (`safetyMilliseconds`) now preserves audio on **both** sides of every detected silent gap — previously only one side was padded.
+- Fixed: `safetyMilliseconds` from `.strip-silence.json` is now actually passed to the silence detector; previously it was parsed but silently ignored.
+- Fixed: removed a duplicate, backwards-applied padding pass that could delete a few milliseconds of audio just before each gap (it also mixed seconds/beats units).
+- Fixed: all clip-clear operations are strictly clamped to the selected time range — the tail-clear cleanup can no longer delete anything beyond the selection end.
+- Unchanged: single-transaction undo behavior, descending clear order, and the noise-gate detection algorithm.
 
 ### v0.0.1-beta
 
