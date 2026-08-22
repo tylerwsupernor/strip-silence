@@ -18,6 +18,10 @@ yarn-error.log*
 # Local env
 .env
 
+# Airtable sync (one-time setup snapshot; live data lives in the Airtable base)
+airtable-import/
+scripts/push_to_airtable.mjs
+
 # Pack files
 *.tgz
 
